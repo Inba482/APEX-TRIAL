@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "APEX TRAIL — Outdoor Gear"
+version = "1.0.0"
+id = "artifacts/apex-trail"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22722
+
+[services.development]
+run = "pnpm --filter @workspace/apex-trail run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/apex-trail", "run", "build" ]
+publicDir = "artifacts/apex-trail/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22722"
+BASE_PATH = "/"

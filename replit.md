@@ -1,10 +1,11 @@
-# [Project name]
+# APEX TRAIL — E-commerce Product Catalog
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A production-grade e-commerce product catalog for a premium outdoor gear brand. Users can browse, filter, inspect, wishlist, and add gear to cart across 6 categories and 17 products.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
+- `pnpm --filter @workspace/apex-trail run dev` — run the frontend (dev port assigned via workflow)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -14,23 +15,40 @@ _Replace the heading above with the project's name, and this line with one sente
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
+- Frontend: React 18 + Vite, wouter (routing), TanStack Query, zustand (cart/wishlist), framer-motion, Tailwind CSS v4
 - API: Express 5
 - DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
+- Validation: Zod (zod/v4), drizzle-zod
 - API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Build: esbuild (CJS bundle for server), Vite (frontend)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — Single source of truth for all API contracts
+- `lib/db/src/schema/` — Drizzle ORM table definitions (products, categories, contact_messages)
+- `artifacts/api-server/src/routes/` — Express route handlers (products.ts, categories.ts, catalog.ts)
+- `artifacts/apex-trail/src/` — React frontend
+  - `lib/store/` — zustand cart + wishlist stores (localStorage-persisted)
+  - `pages/` — Home, Products, ProductDetail, Categories, CategoryDetail, About, Contact, Cart, NotFound
+  - `components/` — Navbar, Footer, ProductCard, skeleton loaders, etc.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **OpenAPI-first**: All API contracts defined in `openapi.yaml` before writing any code. Codegen produces typed React Query hooks and Zod validators — no hand-written types that drift from the spec.
+- **Cart & wishlist are client-only**: Persisted in localStorage via zustand's `persist` middleware. No server round-trips, real-time badge count sync across all pages.
+- **Service seam for backend swap**: ProductService is the generated hook layer — swapping the JSON data source for a real external API requires only changing the base URL, not touching UI components.
+- **Express 5 async routes**: All route handlers use async/await with explicit try/catch and user-facing error responses (never silent console errors).
+- **React Query for all server state**: Deduplication, background refresh, and skeleton loading states handled automatically.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Home**: Hero, live stats (products, categories, avg rating, new arrivals), featured gear, new arrivals, bestsellers, category highlights
+- **Products**: Filterable/searchable grid with category, price range, tags, in-stock filters + sort (newest/price/rating) + load-more pagination
+- **Product Detail**: Image gallery, specs table, quantity stepper, add-to-cart, wishlist toggle, related products
+- **Categories**: Overview grid with product counts + category-filtered product view
+- **Cart**: Full cart with quantity +/-, line totals, grand total, empty state, checkout intent
+- **Contact**: Form with client-side validation + server submission via API
+- **About**: Brand story page
 
 ## User preferences
 
@@ -38,8 +56,14 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Run `pnpm --filter @workspace/api-spec run codegen` after any OpenAPI spec change before touching route or frontend code
+- `zustand` must be listed in `artifacts/apex-trail/package.json` — it is not in the workspace catalog
+- DB seeding used `ON CONFLICT (slug) DO NOTHING` — safe to re-run
+- The `featured` products endpoint filters on `products.featured = true` — set this flag in DB to surface items on homepage
 
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- DB schema: `lib/db/src/schema/index.ts`
+- API contract: `lib/api-spec/openapi.yaml`
+- Generated hooks: `lib/api-client-react/src/generated/api.ts`
