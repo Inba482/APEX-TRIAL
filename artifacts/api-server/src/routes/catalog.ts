@@ -1,32 +1,37 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { productsTable, categoriesTable, contactMessagesTable } from "@workspace/db";
-import { gte, desc, sql, eq } from "drizzle-orm";
-import {
-  SubmitContactBody,
-} from "@workspace/api-zod";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 const router = Router();
 
+function loadProducts() {
+  const data = readFileSync(join(process.cwd(), "src/data/products.json"), "utf-8");
+  return JSON.parse(data);
+}
+
+function loadCategories() {
+  const data = readFileSync(join(process.cwd(), "src/data/categories.json"), "utf-8");
+  return JSON.parse(data);
+}
+
 router.get("/catalog/summary", async (req, res) => {
   try {
+    const products = loadProducts();
+    const categories = loadCategories();
+
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const [products, categories, newArrivals, inStock, avgRating] = await Promise.all([
-      db.select({ count: sql<number>`count(*)::int` }).from(productsTable),
-      db.select({ count: sql<number>`count(*)::int` }).from(categoriesTable),
-      db.select({ count: sql<number>`count(*)::int` }).from(productsTable).where(gte(productsTable.createdAt, thirtyDaysAgo)),
-      db.select({ count: sql<number>`count(*)::int` }).from(productsTable).where(gte(productsTable.stock, 1)),
-      db.select({ avg: sql<number>`round(avg(rating::numeric), 2)` }).from(productsTable),
-    ]);
+    const newArrivals = products.filter((p: any) => new Date(p.createdAt) >= thirtyDaysAgo).length;
+    const inStock = products.filter((p: any) => p.stock >= 1).length;
+    const avgRating = products.reduce((sum: number, p: any) => sum + p.rating, 0) / products.length;
 
     res.json({
-      totalProducts: products[0]?.count ?? 0,
-      totalCategories: categories[0]?.count ?? 0,
-      avgRating: parseFloat(String(avgRating[0]?.avg ?? 0)),
-      newArrivalsCount: newArrivals[0]?.count ?? 0,
-      inStockCount: inStock[0]?.count ?? 0,
+      totalProducts: products.length,
+      totalCategories: categories.length,
+      avgRating: Math.round(avgRating * 100) / 100,
+      newArrivalsCount: newArrivals,
+      inStockCount: inStock,
     });
   } catch (err) {
     req.log.error({ err }, "getCatalogSummary failed");
@@ -36,20 +41,26 @@ router.get("/catalog/summary", async (req, res) => {
 
 router.get("/catalog/new-arrivals", async (req, res) => {
   try {
+    const products = loadProducts();
+    const categories = loadCategories();
+
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 90);
 
-    const rows = await db
-      .select()
-      .from(productsTable)
-      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
-      .where(gte(productsTable.createdAt, thirtyDaysAgo))
-      .orderBy(desc(productsTable.createdAt))
-      .limit(8);
+    const newArrivals = products
+      .filter((p: any) => new Date(p.createdAt) >= thirtyDaysAgo)
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 8)
+      .map((p: any) => {
+        const category = categories.find((c: any) => c.id === p.categoryId);
+        return {
+          ...p,
+          category: category?.name ?? "",
+          categorySlug: category?.slug ?? "",
+        };
+      });
 
-    res.json(
-      rows.map((r) => formatProduct(r.products, r.categories))
-    );
+    res.json(newArrivals);
   } catch (err) {
     req.log.error({ err }, "listNewArrivals failed");
     res.status(500).json({ error: "Failed to fetch new arrivals" });
@@ -58,16 +69,25 @@ router.get("/catalog/new-arrivals", async (req, res) => {
 
 router.get("/catalog/bestsellers", async (req, res) => {
   try {
-    const rows = await db
-      .select()
-      .from(productsTable)
-      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
-      .orderBy(desc(productsTable.rating), desc(productsTable.reviewCount))
-      .limit(8);
+    const products = loadProducts();
+    const categories = loadCategories();
 
-    res.json(
-      rows.map((r) => formatProduct(r.products, r.categories))
-    );
+    const bestsellers = products
+      .sort((a: any, b: any) => {
+        if (b.rating !== a.rating) return b.rating - a.rating;
+        return b.reviewCount - a.reviewCount;
+      })
+      .slice(0, 8)
+      .map((p: any) => {
+        const category = categories.find((c: any) => c.id === p.categoryId);
+        return {
+          ...p,
+          category: category?.name ?? "",
+          categorySlug: category?.slug ?? "",
+        };
+      });
+
+    res.json(bestsellers);
   } catch (err) {
     req.log.error({ err }, "listBestsellers failed");
     res.status(500).json({ error: "Failed to fetch bestsellers" });
@@ -76,15 +96,13 @@ router.get("/catalog/bestsellers", async (req, res) => {
 
 router.get("/catalog/tags", async (req, res) => {
   try {
-    const rows = await db
-      .select({ tags: productsTable.tags })
-      .from(productsTable);
+    const products = loadProducts();
 
     const allTags = new Set<string>();
-    for (const row of rows) {
-      const tags = row.tags as string[];
+    for (const product of products) {
+      const tags = product.tags;
       if (Array.isArray(tags)) {
-        tags.forEach((t) => allTags.add(t));
+        tags.forEach((t: string) => allTags.add(t));
       }
     }
 
@@ -94,52 +112,5 @@ router.get("/catalog/tags", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch tags" });
   }
 });
-
-router.post("/contact", async (req, res) => {
-  try {
-    const result = SubmitContactBody.safeParse(req.body);
-    if (!result.success) {
-      res.status(422).json({ error: "Validation failed", issues: result.error.issues });
-      return;
-    }
-
-    await db.insert(contactMessagesTable).values({
-      name: result.data.name,
-      email: result.data.email,
-      subject: result.data.subject ?? null,
-      message: result.data.message,
-    });
-
-    res.json({ success: true, message: "Message received. We'll be in touch within 24 hours." });
-  } catch (err) {
-    req.log.error({ err }, "submitContact failed");
-    res.status(500).json({ error: "Failed to submit message" });
-  }
-});
-
-function formatProduct(
-  product: typeof productsTable.$inferSelect,
-  category: typeof categoriesTable.$inferSelect | null
-) {
-  return {
-    id: product.id,
-    name: product.name,
-    slug: product.slug,
-    price: parseFloat(product.price as unknown as string),
-    originalPrice: product.originalPrice ? parseFloat(product.originalPrice as unknown as string) : null,
-    category: category?.name ?? "",
-    categorySlug: category?.slug ?? "",
-    images: (product.images as string[]) ?? [],
-    description: product.description,
-    shortDescription: product.shortDescription,
-    rating: parseFloat(product.rating as unknown as string),
-    reviewCount: product.reviewCount,
-    stock: product.stock,
-    tags: (product.tags as string[]) ?? [],
-    createdAt: product.createdAt.toISOString(),
-    featured: product.featured,
-    specs: (product.specs as Record<string, string>) ?? {},
-  };
-}
 
 export default router;

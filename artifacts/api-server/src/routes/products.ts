@@ -1,9 +1,19 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { productsTable, categoriesTable } from "@workspace/db";
-import { eq, ilike, and, gte, lte, desc, asc, sql, inArray } from "drizzle-orm";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 const router = Router();
+
+// Load data from JSON files
+function loadProducts() {
+  const data = readFileSync(join(process.cwd(), "src/data/products.json"), "utf-8");
+  return JSON.parse(data);
+}
+
+function loadCategories() {
+  const data = readFileSync(join(process.cwd(), "src/data/categories.json"), "utf-8");
+  return JSON.parse(data);
+}
 
 router.get("/products", async (req, res) => {
   try {
@@ -21,82 +31,81 @@ router.get("/products", async (req, res) => {
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(48, Math.max(1, parseInt(limit, 10) || 12));
-    const offset = (pageNum - 1) * limitNum;
+    
+    let products = loadProducts();
+    const categories = loadCategories();
 
-    const conditions = [];
-
+    // Filter by category
     if (category) {
-      const cat = await db
-        .select({ id: categoriesTable.id })
-        .from(categoriesTable)
-        .where(eq(categoriesTable.slug, category))
-        .limit(1);
-      if (cat.length > 0) {
-        conditions.push(eq(productsTable.categoryId, cat[0].id));
+      const cat = categories.find((c: any) => c.slug === category);
+      if (cat) {
+        products = products.filter((p: any) => p.categoryId === cat.id);
       }
     }
 
+    // Filter by search
     if (search) {
-      conditions.push(ilike(productsTable.name, `%${search}%`));
-    }
-
-    if (minPrice) {
-      conditions.push(gte(productsTable.price, minPrice));
-    }
-
-    if (maxPrice) {
-      conditions.push(lte(productsTable.price, maxPrice));
-    }
-
-    if (inStock === "true") {
-      conditions.push(gte(productsTable.stock, 1));
-    }
-
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
-
-    let orderBy;
-    switch (sort) {
-      case "price-asc":
-        orderBy = asc(productsTable.price);
-        break;
-      case "price-desc":
-        orderBy = desc(productsTable.price);
-        break;
-      case "rating-desc":
-        orderBy = desc(productsTable.rating);
-        break;
-      case "newest":
-      default:
-        orderBy = desc(productsTable.createdAt);
-        break;
-    }
-
-    const [countResult, rawProducts] = await Promise.all([
-      db.select({ count: sql<number>`count(*)::int` }).from(productsTable).where(where),
-      db
-        .select()
-        .from(productsTable)
-        .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
-        .where(where)
-        .orderBy(orderBy)
-        .limit(limitNum)
-        .offset(offset),
-    ]);
-
-    const total = countResult[0]?.count ?? 0;
-
-    // Filter by tags client-side (jsonb array contains check)
-    let products = rawProducts.map((row) => formatProduct(row.products, row.categories));
-
-    if (tags) {
-      const tagList = tags.split(",").map((t) => t.trim().toLowerCase());
-      products = products.filter((p) =>
-        tagList.some((t) => p.tags.map((pt: string) => pt.toLowerCase()).includes(t))
+      const searchLower = search.toLowerCase();
+      products = products.filter((p: any) => 
+        p.name.toLowerCase().includes(searchLower) ||
+        p.description.toLowerCase().includes(searchLower)
       );
     }
 
+    // Filter by price range
+    if (minPrice) {
+      products = products.filter((p: any) => p.price >= parseInt(minPrice));
+    }
+    if (maxPrice) {
+      products = products.filter((p: any) => p.price <= parseInt(maxPrice));
+    }
+
+    // Filter by stock
+    if (inStock === "true") {
+      products = products.filter((p: any) => p.stock >= 1);
+    }
+
+    // Filter by tags
+    if (tags) {
+      const tagList = tags.split(",").map((t: string) => t.trim().toLowerCase());
+      products = products.filter((p: any) =>
+        tagList.some((t: string) => p.tags.map((pt: string) => pt.toLowerCase()).includes(t))
+      );
+    }
+
+    // Sort
+    switch (sort) {
+      case "price-asc":
+        products.sort((a: any, b: any) => a.price - b.price);
+        break;
+      case "price-desc":
+        products.sort((a: any, b: any) => b.price - a.price);
+        break;
+      case "rating-desc":
+        products.sort((a: any, b: any) => b.rating - a.rating);
+        break;
+      case "newest":
+      default:
+        products.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+    }
+
+    const total = products.length;
+    const offset = (pageNum - 1) * limitNum;
+    const paginatedProducts = products.slice(offset, offset + limitNum);
+
+    // Add category info to products
+    const productsWithCategory = paginatedProducts.map((p: any) => {
+      const category = categories.find((c: any) => c.id === p.categoryId);
+      return {
+        ...p,
+        category: category?.name ?? "",
+        categorySlug: category?.slug ?? "",
+      };
+    });
+
     res.json({
-      products,
+      products: productsWithCategory,
       total,
       page: pageNum,
       limit: limitNum,
@@ -110,15 +119,23 @@ router.get("/products", async (req, res) => {
 
 router.get("/products/featured", async (req, res) => {
   try {
-    const rows = await db
-      .select()
-      .from(productsTable)
-      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
-      .where(eq(productsTable.featured, true))
-      .orderBy(desc(productsTable.rating))
-      .limit(8);
+    const products = loadProducts();
+    const categories = loadCategories();
+    
+    const featured = products
+      .filter((p: any) => p.featured)
+      .sort((a: any, b: any) => b.rating - a.rating)
+      .slice(0, 8)
+      .map((p: any) => {
+        const category = categories.find((c: any) => c.id === p.categoryId);
+        return {
+          ...p,
+          category: category?.name ?? "",
+          categorySlug: category?.slug ?? "",
+        };
+      });
 
-    res.json(rows.map((r) => formatProduct(r.products, r.categories)));
+    res.json(featured);
   } catch (err) {
     req.log.error({ err }, "listFeaturedProducts failed");
     res.status(500).json({ error: "Failed to fetch featured products" });
@@ -130,18 +147,21 @@ router.get("/products/:id", async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
 
-    const rows = await db
-      .select()
-      .from(productsTable)
-      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
-      .where(eq(productsTable.id, id))
-      .limit(1);
+    const products = loadProducts();
+    const categories = loadCategories();
+    
+    const product = products.find((p: any) => p.id === id);
+    if (!product) { res.status(404).json({ error: "Product not found" }); return; }
 
-    if (rows.length === 0) { res.status(404).json({ error: "Product not found" }); return; }
-    res.json(formatProduct(rows[0].products, rows[0].categories));
+    const category = categories.find((c: any) => c.id === product.categoryId);
+    res.json({
+      ...product,
+      category: category?.name ?? "",
+      categorySlug: category?.slug ?? "",
+    });
   } catch (err) {
     req.log.error({ err }, "getProduct failed");
-    res.status(500).json({ error: "Failed to fetch product" }); return;
+    res.status(500).json({ error: "Failed to fetch product" });
   }
 });
 
@@ -150,57 +170,30 @@ router.get("/products/:id/related", async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) { res.status(404).json({ error: "Not found" }); return; }
 
-    const product = await db
-      .select({ categoryId: productsTable.categoryId })
-      .from(productsTable)
-      .where(eq(productsTable.id, id))
-      .limit(1);
+    const products = loadProducts();
+    const categories = loadCategories();
+    
+    const product = products.find((p: any) => p.id === id);
+    if (!product) { res.json([]); return; }
 
-    if (product.length === 0) { res.json([]); return; }
+    const related = products
+      .filter((p: any) => p.categoryId === product.categoryId && p.id !== id)
+      .sort((a: any, b: any) => b.rating - a.rating)
+      .slice(0, 4)
+      .map((p: any) => {
+        const category = categories.find((c: any) => c.id === p.categoryId);
+        return {
+          ...p,
+          category: category?.name ?? "",
+          categorySlug: category?.slug ?? "",
+        };
+      });
 
-    const rows = await db
-      .select()
-      .from(productsTable)
-      .leftJoin(categoriesTable, eq(productsTable.categoryId, categoriesTable.id))
-      .where(
-        and(
-          eq(productsTable.categoryId, product[0].categoryId),
-          sql`${productsTable.id} != ${id}`
-        )
-      )
-      .orderBy(desc(productsTable.rating))
-      .limit(4);
-
-    res.json(rows.map((r) => formatProduct(r.products, r.categories)));
+    res.json(related);
   } catch (err) {
     req.log.error({ err }, "getRelatedProducts failed");
     res.status(500).json({ error: "Failed to fetch related products" });
   }
 });
-
-function formatProduct(
-  product: typeof productsTable.$inferSelect,
-  category: typeof categoriesTable.$inferSelect | null
-) {
-  return {
-    id: product.id,
-    name: product.name,
-    slug: product.slug,
-    price: parseFloat(product.price as unknown as string),
-    originalPrice: product.originalPrice ? parseFloat(product.originalPrice as unknown as string) : null,
-    category: category?.name ?? "",
-    categorySlug: category?.slug ?? "",
-    images: (product.images as string[]) ?? [],
-    description: product.description,
-    shortDescription: product.shortDescription,
-    rating: parseFloat(product.rating as unknown as string),
-    reviewCount: product.reviewCount,
-    stock: product.stock,
-    tags: (product.tags as string[]) ?? [],
-    createdAt: product.createdAt.toISOString(),
-    featured: product.featured,
-    specs: (product.specs as Record<string, string>) ?? {},
-  };
-}
 
 export default router;

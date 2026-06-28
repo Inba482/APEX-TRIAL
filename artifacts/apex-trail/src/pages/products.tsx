@@ -1,5 +1,5 @@
 import { Layout } from "@/components/layout";
-import { useListProducts, useListCategories, useListTags } from "@workspace/api-client-react";
+import { useListProducts, useListCategories, useListTags, ListProductsSort } from "@workspace/api-client-react";
 import { ProductCard } from "@/components/product-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,6 @@ import { Search, SlidersHorizontal, X } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ListProductsSort } from "@workspace/api-client-react/src/generated/api.schemas";
 
 // Debounce hook
 function useDebounce<T>(value: T, delay: number): T {
@@ -33,7 +32,7 @@ export function Products() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedSort, setSelectedSort] = useState<ListProductsSort>("newest");
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000]);
+  const [priceRange, setPriceRange] = useState<[number, number]>([1000, 40000]);
   const debouncedPriceRange = useDebounce(priceRange, 500);
   
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -47,8 +46,8 @@ export function Products() {
     category: selectedCategory !== "all" ? selectedCategory : undefined,
     sort: selectedSort,
     inStock: inStockOnly ? true : undefined,
-    minPrice: debouncedPriceRange[0] > 0 ? debouncedPriceRange[0] : undefined,
-    maxPrice: debouncedPriceRange[1] < 1000 ? debouncedPriceRange[1] : undefined,
+    minPrice: debouncedPriceRange[0] > 1000 ? debouncedPriceRange[0] : undefined,
+    maxPrice: debouncedPriceRange[1] < 40000 ? debouncedPriceRange[1] : undefined,
     tags: selectedTags.length > 0 ? selectedTags.join(",") : undefined,
     page,
     limit: 12
@@ -74,7 +73,7 @@ export function Products() {
             />
             <Label htmlFor="cat-all" className="cursor-pointer">All Gear</Label>
           </div>
-          {categories?.map(cat => (
+          {Array.isArray(categories) && categories.map(cat => (
             <div key={cat.id} className="flex items-center space-x-2">
               <Checkbox 
                 id={`cat-${cat.slug}`}
@@ -90,16 +89,16 @@ export function Products() {
       <div>
         <h3 className="font-semibold mb-4">Price Range</h3>
         <Slider
-          min={0}
-          max={1000}
-          step={10}
+          min={1000}
+          max={40000}
+          step={500}
           value={[priceRange[0], priceRange[1]]}
           onValueChange={(val) => { setPriceRange(val as [number, number]); setPage(1); }}
           className="mb-4"
         />
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>${priceRange[0]}</span>
-          <span>${priceRange[1]}{priceRange[1] === 1000 ? '+' : ''}</span>
+          <span>₹{priceRange[0].toLocaleString('en-IN')}</span>
+          <span>₹{priceRange[1].toLocaleString('en-IN')}</span>
         </div>
       </div>
 
@@ -197,7 +196,7 @@ export function Products() {
                 <h2 className="text-lg font-bold flex items-center gap-2">
                   <SlidersHorizontal className="h-5 w-5" /> Filters
                 </h2>
-                {(selectedCategory !== "all" || inStockOnly || selectedTags.length > 0 || priceRange[0] > 0 || priceRange[1] < 1000) && (
+                {(selectedCategory !== "all" || inStockOnly || selectedTags.length > 0 || priceRange[0] > 1000 || priceRange[1] < 40000) && (
                   <Button 
                     variant="ghost" 
                     size="sm" 
@@ -205,7 +204,7 @@ export function Products() {
                       setSelectedCategory("all");
                       setInStockOnly(false);
                       setSelectedTags([]);
-                      setPriceRange([0, 1000]);
+                      setPriceRange([1000, 40000]);
                       setPage(1);
                     }}
                     className="h-8 text-xs text-muted-foreground hover:text-foreground"
@@ -228,16 +227,16 @@ export function Products() {
                     <Skeleton className="h-4 w-1/2" />
                   </div>
                 ))
-              ) : productPage?.products.length === 0 ? (
+              ) : productPage && Array.isArray(productPage.products) && productPage.products.length === 0 ? (
                 <div className="col-span-full py-20 text-center">
                   <h3 className="text-xl font-semibold mb-2">No products found</h3>
                   <p className="text-muted-foreground">Try adjusting your filters or search query.</p>
                 </div>
-              ) : (
-                productPage?.products.map((product) => (
+              ) : productPage && Array.isArray(productPage.products) ? (
+                productPage.products.map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))
-              )}
+              ) : null}
             </div>
 
             {productPage && productPage.totalPages > 1 && (

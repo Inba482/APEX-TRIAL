@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "name": "Tents & Shelters",
+    "slug": "tents-shelters",
+    "description": "4-season tents, bivy sacks, and tarps for alpine expeditions",
+    "imageUrl": "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=800&q=80",
+    "productCount": 2
+  },
+  {
+    "id": 2,
+    "name": "Insulation",
+    "slug": "insulation",
+    "description": "Down jackets, sleeping bags, and thermal layers",
+    "imageUrl": "https://images.unsplash.com/photo-1551488172-9bdce5e5c4b2?w=800&q=80",
+    "productCount": 2
+  },
+  {
+    "id": 3,
+    "name": "Footwear",
+    "slug": "footwear",
+    "description": "Trekking boots, approach shoes, and camp footwear",
+    "imageUrl": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+    "productCount": 1
+  },
+  {
+    "id": 4,
+    "name": "Packs & Bags",
+    "slug": "packs-bags",
+    "description": "Expedition packs, daypacks, and travel bags",
+    "imageUrl": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80",
+    "productCount": 1
+  },
+  {
+    "id": 5,
+    "name": "Climbing Gear",
+    "slug": "climbing-gear",
+    "description": "Harnesses, carabiners, ropes, and protection",
+    "imageUrl": "https://images.unsplash.com/photo-1522163182402-834f871fd851?w=800&q=80",
+    "productCount": 1
+  },
+  {
+    "id": 6,
+    "name": "Trekking Equipment",
+    "slug": "trekking-equipment",
+    "description": "Trekking poles, walking sticks, and accessories",
+    "imageUrl": "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=800&q=80",
+    "productCount": 1
+  }
+]

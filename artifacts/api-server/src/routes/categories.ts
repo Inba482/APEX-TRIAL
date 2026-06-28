@@ -1,27 +1,35 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { categoriesTable, productsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 const router = Router();
 
+function loadCategories() {
+  const data = readFileSync(join(process.cwd(), "src/data/categories.json"), "utf-8");
+  return JSON.parse(data);
+}
+
+function loadProducts() {
+  const data = readFileSync(join(process.cwd(), "src/data/products.json"), "utf-8");
+  return JSON.parse(data);
+}
+
 router.get("/categories", async (req, res) => {
   try {
-    const rows = await db
-      .select({
-        id: categoriesTable.id,
-        name: categoriesTable.name,
-        slug: categoriesTable.slug,
-        description: categoriesTable.description,
-        imageUrl: categoriesTable.imageUrl,
-        productCount: sql<number>`count(${productsTable.id})::int`,
-      })
-      .from(categoriesTable)
-      .leftJoin(productsTable, eq(productsTable.categoryId, categoriesTable.id))
-      .groupBy(categoriesTable.id)
-      .orderBy(categoriesTable.name);
+    const categories = loadCategories();
+    const products = loadProducts();
 
-    res.json(rows);
+    // Add product count to each category
+    const categoriesWithCount = categories.map((cat: any) => ({
+      id: cat.id,
+      name: cat.name,
+      slug: cat.slug,
+      description: cat.description,
+      imageUrl: cat.imageUrl,
+      productCount: products.filter((p: any) => p.categoryId === cat.id).length,
+    }));
+
+    res.json(categoriesWithCount);
   } catch (err) {
     req.log.error({ err }, "listCategories failed");
     res.status(500).json({ error: "Failed to fetch categories" });
@@ -31,27 +39,28 @@ router.get("/categories", async (req, res) => {
 router.get("/categories/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
+    const categories = loadCategories();
+    const products = loadProducts();
 
-    const rows = await db
-      .select({
-        id: categoriesTable.id,
-        name: categoriesTable.name,
-        slug: categoriesTable.slug,
-        description: categoriesTable.description,
-        imageUrl: categoriesTable.imageUrl,
-        productCount: sql<number>`count(${productsTable.id})::int`,
-      })
-      .from(categoriesTable)
-      .leftJoin(productsTable, eq(productsTable.categoryId, categoriesTable.id))
-      .where(eq(categoriesTable.slug, slug))
-      .groupBy(categoriesTable.id)
-      .limit(1);
+    const category = categories.find((c: any) => c.slug === slug);
+    if (!category) {
+      res.status(404).json({ error: "Category not found" });
+      return;
+    }
 
-    if (rows.length === 0) { res.status(404).json({ error: "Category not found" }); return; }
-    res.json(rows[0]);
+    const productCount = products.filter((p: any) => p.categoryId === category.id).length;
+
+    res.json({
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+      description: category.description,
+      imageUrl: category.imageUrl,
+      productCount,
+    });
   } catch (err) {
     req.log.error({ err }, "getCategory failed");
-    res.status(500).json({ error: "Failed to fetch category" }); return;
+    res.status(500).json({ error: "Failed to fetch category" });
   }
 });
 
