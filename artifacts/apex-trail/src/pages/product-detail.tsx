@@ -5,12 +5,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/lib/store/cart";
 import { useWishlistStore } from "@/lib/store/wishlist";
-import { Minus, Plus, ShoppingCart, Heart, ChevronRight } from "lucide-react";
+import { Minus, Plus, ShoppingCart, Heart, ChevronRight, Star } from "lucide-react";
 import { useState } from "react";
 import { ProductCard } from "@/components/product-card";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { formatPrice } from "@/lib/utils";
 
 export function ProductDetail() {
   const params = useParams();
@@ -125,20 +126,26 @@ export function ProductDetail() {
 
           {/* Details */}
           <div className="flex flex-col">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-semibold tracking-wider text-muted-foreground uppercase">{product.category}</span>
-              <div className="flex items-center gap-1 text-sm font-medium">
-                <span className="text-muted-foreground">★</span>
-                {product.rating.toFixed(1)} <span className="text-muted-foreground font-normal">({product.reviewCount} reviews)</span>
-              </div>
+            <div className="mb-3">
+              <span className="text-xs font-semibold tracking-widest text-primary/80 uppercase">{product.category}</span>
             </div>
             
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">{product.name}</h1>
-            
+            <h1 className="font-serif text-3xl md:text-4xl font-bold tracking-tight mb-4">{product.name}</h1>
+
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className={`h-4 w-4 ${i < Math.round(product.rating) ? 'fill-primary text-primary' : 'text-muted-foreground/30'}`} />
+                ))}
+              </div>
+              <span className="text-sm font-medium">{product.rating.toFixed(1)}</span>
+              <span className="text-sm text-muted-foreground">({product.reviewCount} reviews)</span>
+            </div>
+
             <div className="flex items-baseline gap-4 mb-6">
-              <span className="text-3xl font-bold">${product.price.toFixed(2)}</span>
+              <span className="text-3xl font-bold text-primary">{formatPrice(product.price)}</span>
               {product.originalPrice && product.originalPrice > product.price && (
-                <span className="text-xl text-muted-foreground line-through">${product.originalPrice.toFixed(2)}</span>
+                <span className="text-xl text-muted-foreground line-through">{formatPrice(product.originalPrice)}</span>
               )}
             </div>
 

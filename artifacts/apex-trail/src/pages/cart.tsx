@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Trash2, Minus, Plus, ArrowRight } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { formatPrice } from "@/lib/utils";
 
 export function Cart() {
   const { items, updateQuantity, removeItem, clearCart, totalPrice } = useCartStore();
@@ -76,8 +77,8 @@ export function Cart() {
                   </div>
                 </div>
 
-                <div className="text-center font-medium hidden md:block">
-                  ${item.product.price.toFixed(2)}
+                <div className="text-center font-medium hidden md:block text-primary">
+                  {formatPrice(item.product.price)}
                 </div>
 
                 <div className="flex items-center justify-between md:justify-center w-full">
@@ -101,8 +102,8 @@ export function Cart() {
 
                 <div className="flex items-center justify-between md:justify-end">
                   <span className="md:hidden text-muted-foreground font-medium text-sm">Total:</span>
-                  <div className="font-bold text-lg">
-                    ${(item.product.price * item.quantity).toFixed(2)}
+                  <div className="font-bold text-lg text-primary">
+                    {formatPrice(item.product.price * item.quantity)}
                   </div>
                 </div>
                 
@@ -134,27 +135,27 @@ export function Cart() {
               <div className="space-y-4">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
-                  <span className="text-foreground font-medium">${subtotal.toFixed(2)}</span>
+                  <span className="text-foreground font-medium">{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Shipping</span>
                   {shipping === 0 ? (
                     <span className="text-primary font-medium text-sm uppercase tracking-wider">Free</span>
                   ) : (
-                    <span className="text-foreground font-medium">${shipping.toFixed(2)}</span>
+                    <span className="text-foreground font-medium">{formatPrice(shipping)}</span>
                   )}
                 </div>
                 {shipping > 0 && (
                   <p className="text-xs text-muted-foreground italic text-right">
-                    Free shipping on orders over $150
+                    Free shipping on orders above ₹8,300
                   </p>
                 )}
-                
+
                 <Separator className="my-4" />
-                
+
                 <div className="flex justify-between items-end mb-6">
                   <span className="font-bold text-lg">Total</span>
-                  <span className="font-bold text-3xl">${total.toFixed(2)}</span>
+                  <span className="font-bold text-3xl text-primary">{formatPrice(total)}</span>
                 </div>
                 
                 <Button size="lg" className="w-full text-base font-semibold h-14" onClick={handleCheckout}>

@@ -1,9 +1,8 @@
 import { Product } from "@workspace/api-client-react/src/generated/api.schemas";
-import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
-import { Heart } from "lucide-react";
+import { Heart, Star } from "lucide-react";
 import { useWishlistStore } from "@/lib/store/wishlist";
-import { Button } from "@/components/ui/button";
+import { formatPrice } from "@/lib/utils";
 
 interface ProductCardProps {
   product: Product;
@@ -12,69 +11,97 @@ interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   const { hasItem, toggleItem } = useWishlistStore();
   const isWishlisted = hasItem(product.id);
+  const isOnSale = product.originalPrice != null && product.originalPrice > product.price;
 
   return (
-    <Card className="group overflow-hidden border-border bg-card hover:border-primary/50 transition-all duration-300">
-      <div className="relative aspect-[4/5] overflow-hidden bg-muted">
+    <div className="group relative flex flex-col overflow-hidden rounded-lg bg-card border border-card-border transition-all duration-300 saffron-glow cursor-pointer">
+      {/* Image */}
+      <div className="relative aspect-[4/5] overflow-hidden bg-muted flex-shrink-0">
         <Link href={`/products/${product.id}`}>
-          <img 
-            src={product.images[0]} 
-            alt={product.name} 
+          <img
+            src={product.images[0]}
+            alt={product.name}
             loading="lazy"
-            className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-105"
+            width={400}
+            height={500}
+            className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-108"
+            style={{ transition: 'transform 700ms cubic-bezier(0.25,0.46,0.45,0.94)' }}
           />
         </Link>
-        
-        {product.originalPrice && product.originalPrice > product.price && (
-          <div className="absolute top-2 left-2 bg-destructive text-destructive-foreground text-xs font-bold px-2 py-1 rounded">
-            SALE
-          </div>
-        )}
-        
-        {product.featured && (
-          <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded">
-            FEATURED
-          </div>
-        )}
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 right-2 bg-background/50 backdrop-blur opacity-0 group-hover:opacity-100 transition-opacity hover:bg-background/80 hover:text-destructive"
+        {/* Gradient overlay at bottom of image */}
+        <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-card/80 to-transparent pointer-events-none" />
+
+        {/* Badges */}
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+          {product.featured && !isOnSale && (
+            <span className="bg-primary text-primary-foreground text-[10px] font-bold px-2.5 py-1 rounded-sm tracking-wider uppercase">
+              Featured
+            </span>
+          )}
+          {isOnSale && (
+            <span className="bg-accent text-accent-foreground text-[10px] font-bold px-2.5 py-1 rounded-sm tracking-wider uppercase">
+              Sale
+            </span>
+          )}
+        </div>
+
+        {/* Wishlist */}
+        <button
+          className={`absolute top-3 right-3 p-2 rounded-full transition-all duration-200 backdrop-blur-sm ${
+            isWishlisted
+              ? "bg-accent/90 text-white opacity-100"
+              : "bg-black/40 text-white/70 opacity-0 group-hover:opacity-100 hover:bg-black/60"
+          }`}
           onClick={(e) => {
             e.preventDefault();
             toggleItem(product.id);
           }}
+          aria-label="Toggle Wishlist"
         >
-          <Heart className={`h-5 w-5 ${isWishlisted ? 'fill-destructive text-destructive' : ''}`} />
-          <span className="sr-only">Toggle Wishlist</span>
-        </Button>
+          <Heart className={`h-4 w-4 ${isWishlisted ? "fill-white" : ""}`} />
+        </button>
+
+        {/* Stock warning */}
+        {product.stock > 0 && product.stock <= 5 && (
+          <div className="absolute bottom-3 left-3">
+            <span className="bg-background/80 backdrop-blur-sm text-xs text-primary font-semibold px-2 py-0.5 rounded-sm">
+              Only {product.stock} left
+            </span>
+          </div>
+        )}
       </div>
-      
-      <CardContent className="p-4">
-        <div className="flex justify-between items-start gap-2 mb-1">
-          <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+
+      {/* Info */}
+      <div className="p-4 flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-primary/80">
             {product.category}
-          </div>
-          <div className="text-sm font-medium flex items-center gap-1">
-            <span className="text-muted-foreground">★</span>
-            {product.rating.toFixed(1)}
-          </div>
+          </span>
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Star className="h-3 w-3 fill-primary text-primary" />
+            <span className="font-medium text-foreground">{product.rating.toFixed(1)}</span>
+            <span className="text-muted-foreground/60">({product.reviewCount})</span>
+          </span>
         </div>
-        
-        <Link href={`/products/${product.id}`} className="block group-hover:text-primary transition-colors">
-          <h3 className="font-semibold text-base leading-tight mb-2 line-clamp-1">{product.name}</h3>
+
+        <Link href={`/products/${product.id}`}>
+          <h3 className="font-semibold text-sm leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">
+            {product.name}
+          </h3>
         </Link>
-        
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-foreground">${product.price.toFixed(2)}</span>
-          {product.originalPrice && product.originalPrice > product.price && (
-            <span className="text-sm text-muted-foreground line-through">
-              ${product.originalPrice.toFixed(2)}
+
+        <div className="flex items-baseline gap-2 mt-auto pt-1">
+          <span className="text-base font-bold text-primary">
+            {formatPrice(product.price)}
+          </span>
+          {isOnSale && product.originalPrice && (
+            <span className="text-xs text-muted-foreground line-through">
+              {formatPrice(product.originalPrice)}
             </span>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
