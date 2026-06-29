@@ -8,7 +8,7 @@ A production-ready, responsive E-Commerce Product Catalog built using HTML5, CSS
 
 ## 📂 GitHub Repository
 
-https://github.com/yourusername/APEX-TRIAL
+https://github.com/Inba482/APEX-TRIAL
 
 > Replace the above links after deployment.
 
@@ -159,7 +159,7 @@ Deployment is connected to GitHub for automatic updates whenever new changes are
 Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/APEX-TRIAL.git
+git clone https://github.com/Inba482/APEX-TRIAL.git
 ```
 
 Navigate into the project folder:
