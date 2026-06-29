@@ -4,7 +4,7 @@ A production-ready, responsive E-Commerce Product Catalog built using HTML5, CSS
 
 ## 🌐 Live Demo
 
-**Live Website:** https://your-project.vercel.app
+**Live Website:** https://apex-trial-apex-trail.vercel.app/
 
 ## 📂 GitHub Repository
 
